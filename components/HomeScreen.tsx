@@ -1,16 +1,18 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
-import React, { useEffect, useLayoutEffect } from 'react';
-import { View, TouchableOpacity, Text } from 'react-native';
-import { useDispatch } from 'react-redux';
+import React, { useEffect } from 'react';
+import { View, TouchableOpacity, Text, ScrollView } from 'react-native';
+import { useDispatch, useSelector } from 'react-redux';
 
 import EventList from './EventList';
-import { loadEvents } from './redux/eventSlice';
+import { loadEvents, selectEvents } from './redux/eventSlice';
 import { AppDispatch } from './redux/store';
+import { Event } from './types';
 
 const HomeScreen = () => {
   const navigation = useNavigation();
   const dispatch = useDispatch<AppDispatch>();
+  const events: Event[] = useSelector(selectEvents);
 
   useEffect(() => {
     const fetchEvents = async () => {
@@ -27,29 +29,19 @@ const HomeScreen = () => {
     fetchEvents();
   }, [dispatch]);
 
-  // Add "Add Event" button to the top right of the header
-  useLayoutEffect(() => {
-    navigation.setOptions({
-      headerRight: () => (
+  return (
+    <ScrollView>
+      {events.length > 0 && (
         <TouchableOpacity
           onPress={() => navigation.navigate('CreateEvent')}
-          style={{
-            backgroundColor: '#2563eb', // Tailwind blue-600
-            paddingVertical: 8,
-            paddingHorizontal: 12,
-            borderRadius: 8,
-            marginRight: 15,
-          }}>
+          className="ml-auto mr-[15px] mt-4 rounded-lg bg-blue-600 px-3 py-2">
           <Text className="font-bold text-white">✨ Add Event</Text>
         </TouchableOpacity>
-      ),
-    });
-  }, [navigation]);
-
-  return (
-    <View style={{ flex: 1, padding: 20 }} className="items-center overflow-scroll">
-      <EventList />
-    </View>
+      )}
+      <View className="p-2 flex flex-row justify-center">
+        <EventList />
+      </View>
+    </ScrollView>
   );
 };
 

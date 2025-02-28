@@ -1,7 +1,9 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as ImagePicker from 'expo-image-picker'; // For mobile image picker
+import DateTimePicker, { DateTimePickerAndroid } from '@react-native-community/datetimepicker';
+import CalendarView from 'components/CalendarView';
+import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Platform,
   View,
@@ -13,7 +15,6 @@ import {
   TouchableOpacity,
   Image,
 } from 'react-native';
-import DatePicker from 'react-native-date-picker';
 import { useDispatch } from 'react-redux';
 
 import { editEvent } from '../redux/eventSlice';
@@ -34,27 +35,25 @@ const EditEventScreen: React.FC = ({ route }: any) => {
   const [repeat, setRepeat] = useState<'None' | 'Weekly' | 'Bi-weekly' | 'Monthly'>(
     event.repeat ?? 'None'
   );
-  const [openStartTime, setOpenStartTime] = useState(false);
-  const [openEndTime, setOpenEndTime] = useState(false);
-  const [image, setImage] = useState<string | null>(event.image ?? null); // State for image URI or base64 string
+  const [showStartTimePicker, setShowStartTimePicker] = useState(false);
+  const [showEndTimePicker, setShowEndTimePicker] = useState(false);
+  const [image, setImage] = useState<string | null>(event.image ?? null);
+  const [disabledDates, setDisabledDates] = useState<{ start: string; end: string }[]>([]);
 
-  // Handle start time change for web
   const handleStartTimeChangeWeb = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedDateTime = new Date(e.target.value);
-    const timeZoneOffset = selectedDateTime.getTimezoneOffset() * 60000; // Convert offset to milliseconds
-    const localDateTime = new Date(selectedDateTime.getTime() - timeZoneOffset); // Adjust for time zone
+    const timeZoneOffset = selectedDateTime.getTimezoneOffset() * 60000;
+    const localDateTime = new Date(selectedDateTime.getTime() - timeZoneOffset);
     setStartDate(localDateTime);
   };
 
-  // Handle end time change for web
   const handleEndTimeChangeWeb = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedDateTime = new Date(e.target.value);
-    const timeZoneOffset = selectedDateTime.getTimezoneOffset() * 60000; // Convert offset to milliseconds
-    const localDateTime = new Date(selectedDateTime.getTime() - timeZoneOffset); // Adjust for time zone
+    const timeZoneOffset = selectedDateTime.getTimezoneOffset() * 60000;
+    const localDateTime = new Date(selectedDateTime.getTime() - timeZoneOffset);
     setEndDate(localDateTime);
   };
 
-  // Handle image upload for mobile
   const handleImageUploadMobile = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
@@ -73,11 +72,11 @@ const EditEventScreen: React.FC = ({ route }: any) => {
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsEditing: true,
       quality: 0.5,
-      base64: true, // Get base64 string for storage
+      base64: true,
     });
 
     if (!result.canceled) {
-      setImage(result.assets[0].uri); // Save image URI
+      setImage(result.assets[0].uri);
     }
   };
 
@@ -88,6 +87,11 @@ const EditEventScreen: React.FC = ({ route }: any) => {
       } else {
         Alert.alert('Validation Error', 'Event title is required.');
       }
+      return;
+    }
+
+    if (isDateRangeDisabled(startDate, endDate)) {
+      Alert.alert('Error', 'The selected date range is unavailable.');
       return;
     }
 
@@ -116,7 +120,6 @@ const EditEventScreen: React.FC = ({ route }: any) => {
 
       localStorage.setItem('events', JSON.stringify(updatedEvents));
     } else {
-      // React Native: Use AsyncStorage
       const storedEvents = await AsyncStorage.getItem('events');
       let updatedEvents = [];
 
@@ -138,30 +141,168 @@ const EditEventScreen: React.FC = ({ route }: any) => {
     router.back();
   };
 
-  const showStartTimePicker = () => setOpenStartTime(true);
-  const showEndTimePicker = () => setOpenEndTime(true);
-  const hideStartTimePicker = () => setOpenStartTime(false);
-  const hideEndTimePicker = () => setOpenEndTime(false);
-
-  const handleStartTimeConfirm = (selectedTime: Date) => {
-    const updatedStartDate = new Date(startDate);
-    updatedStartDate.setHours(selectedTime.getHours());
-    updatedStartDate.setMinutes(selectedTime.getMinutes());
-    setStartDate(updatedStartDate);
-    hideStartTimePicker();
+  const isDateDisabled = (date: Date) => {
+    const dateString = date.toISOString().slice(0, 16);
+    return disabledDates.some(
+      (disabledDate) => dateString >= disabledDate.start && dateString <= disabledDate.end
+    );
   };
 
-  const handleEndTimeConfirm = (selectedTime: Date) => {
-    const updatedEndDate = new Date(endDate);
-    updatedEndDate.setHours(selectedTime.getHours());
-    updatedEndDate.setMinutes(selectedTime.getMinutes());
-    setEndDate(updatedEndDate);
-    hideEndTimePicker();
+  const isDateRangeDisabled = (startDate: Date, endDate: Date) => {
+    const startString = startDate.toISOString().slice(0, 16);
+    const endString = endDate.toISOString().slice(0, 16);
+
+    return disabledDates.some(
+      ({ start, end }) =>
+        (startString >= start && startString <= end) ||
+        (endString >= start && endString <= end) ||
+        (startString <= start && endString >= end)
+    );
   };
+
+  const handleEndTimeConfirm = (event: any, selectedTime: Date | undefined) => {
+    if (selectedTime) {
+      const updatedEndDate = new Date(selectedTime);
+      updatedEndDate.setHours(selectedTime.getHours());
+      updatedEndDate.setMinutes(selectedTime.getMinutes());
+      if (isDateDisabled(updatedEndDate)) {
+        if (Platform.OS === 'web') {
+          window.alert('This date is already occupied by an event.');
+        } else {
+          Alert.alert('Error', 'This date is already occupied by an event.');
+        }
+        return;
+      }
+      setEndDate(updatedEndDate);
+    }
+    setShowEndTimePicker(false);
+  };
+
+  const handleStartTimeConfirm = (event: any, selectedTime: Date | undefined) => {
+    if (selectedTime) {
+      const updatedStartDate = new Date(selectedTime);
+      updatedStartDate.setHours(selectedTime.getHours());
+      updatedStartDate.setMinutes(selectedTime.getMinutes());
+      if (isDateDisabled(updatedStartDate)) {
+        if (Platform.OS === 'web') {
+          window.alert('This date is already occupied by an event.');
+        } else {
+          Alert.alert('Error', 'This date is already occupied by an event.');
+        }
+        return;
+      }
+      setStartDate(updatedStartDate);
+    }
+    dismissPicker();
+  };
+
+  const showStartDatePicker = () => {
+    if (Platform.OS === 'android') {
+      DateTimePickerAndroid.open({
+        value: startDate,
+        onChange: (event, selectedDate) => {
+          if (selectedDate) {
+            if (selectedDate < new Date()) {
+              Alert.alert('Error', 'Please select a date in the future.');
+              return;
+            }
+            handleEndTimeConfirm(event, selectedDate);
+
+            DateTimePickerAndroid.open({
+              value: selectedDate,
+              onChange: (event, selectedTime) => {
+                if (selectedTime) {
+                  const updatedDateTime = new Date(selectedDate);
+
+                  updatedDateTime.setHours(selectedTime.getHours());
+                  updatedDateTime.setMinutes(selectedTime.getMinutes());
+                  handleStartTimeConfirm(event, updatedDateTime);
+                }
+              },
+              mode: 'time',
+            });
+          }
+        },
+        mode: 'date',
+      });
+    } else {
+      setShowStartTimePicker(true);
+    }
+  };
+
+  const showEndDatePicker = () => {
+    if (Platform.OS === 'android') {
+      DateTimePickerAndroid.open({
+        value: endDate,
+        onChange: (event, selectedDate) => {
+          if (selectedDate) {
+            if (selectedDate < new Date()) {
+              Alert.alert('Error', 'Please select a date in the future.');
+              return;
+            }
+            handleEndTimeConfirm(event, selectedDate);
+
+            DateTimePickerAndroid.open({
+              value: selectedDate,
+              onChange: (event, selectedTime) => {
+                if (selectedTime) {
+                  const updatedDateTime = new Date(selectedDate);
+                  updatedDateTime.setHours(selectedTime.getHours());
+                  updatedDateTime.setMinutes(selectedTime.getMinutes());
+                  handleEndTimeConfirm(event, updatedDateTime);
+                }
+              },
+              mode: 'time',
+            });
+          }
+        },
+        mode: 'date',
+      });
+    } else {
+      setShowEndTimePicker(true);
+    }
+  };
+
+  const dismissPicker = () => {
+    if (Platform.OS === 'android') {
+      DateTimePickerAndroid.dismiss('date');
+    }
+  };
+
+  useEffect(() => {
+    const fetchEvents = async () => {
+      try {
+        let storedEventsString: string | null;
+
+        if (Platform.OS === 'web') {
+          storedEventsString = localStorage.getItem('events');
+        } else {
+          storedEventsString = await AsyncStorage.getItem('events');
+        }
+
+        if (storedEventsString) {
+          const storedEvents = JSON.parse(storedEventsString);
+
+          const dates = storedEvents.map((event: any) => ({
+            start: new Date(event.startDate).toISOString().slice(0, 16),
+            end: new Date(event.endDate).toISOString().slice(0, 16),
+          }));
+
+          setDisabledDates(dates);
+        }
+      } catch (error) {
+        console.error('Failed to fetch events:', error);
+      }
+    };
+
+    fetchEvents();
+  }, []);
 
   return (
-    <ScrollView className="max-w-md flex-1 bg-gray-100 p-5">
-      {/* Event Title Input */}
+    <ScrollView className="w-[100vw] max-w-lg flex-1 bg-gray-100 px-2">
+      <View style={{ flex: 1 }}>
+        <CalendarView />
+      </View>
       <Text className="my-2 text-sm font-semibold text-gray-700">Event Title</Text>
       <TextInput
         placeholder="Enter event title"
@@ -170,7 +311,6 @@ const EditEventScreen: React.FC = ({ route }: any) => {
         className=" rounded-md border border-gray-300 bg-white p-3"
       />
 
-      {/* Description Input */}
       <Text className="my-2 text-sm font-semibold text-gray-700">Event Description</Text>
       <TextInput
         placeholder="Enter event description"
@@ -181,7 +321,6 @@ const EditEventScreen: React.FC = ({ route }: any) => {
         className=" rounded-md border border-gray-300 bg-white p-3"
       />
 
-      {/* Image Upload */}
       <Text className="my-2 text-sm font-semibold text-gray-700">Event Image</Text>
       <TouchableOpacity
         onPress={handleImageUploadMobile}
@@ -194,49 +333,61 @@ const EditEventScreen: React.FC = ({ route }: any) => {
       {Platform.OS === 'web' ? (
         <input
           type="datetime-local"
-          className="p-2"
-          value={startDate.toISOString().slice(0, 16)} // Display in local time
+          value={startDate.toISOString().slice(0, 16)}
           onChange={handleStartTimeChangeWeb}
+          className="p-2"
           min={new Date().toISOString().slice(0, 16)}
+          disabled={disabledDates.some(
+            (date) =>
+              new Date(startDate).toISOString().slice(0, 16) >= date.start &&
+              new Date(startDate).toISOString().slice(0, 16) <= date.end
+          )}
         />
       ) : (
-        <>
-          <Button title="Pick Start Time" onPress={showStartTimePicker} />
-          <DatePicker
-            modal
-            open={openStartTime}
-            date={startDate}
-            mode="datetime" // Use datetime mode for mobile
-            onConfirm={handleStartTimeConfirm}
-            onCancel={hideStartTimePicker}
-            minimumDate={new Date()}
-          />
-        </>
+        <View>
+          <Button title="Pick Start Time" onPress={showStartDatePicker} color="#6200ee" />
+          {showStartTimePicker && (
+            <DateTimePicker
+              value={startDate}
+              mode="datetime"
+              onChange={handleStartTimeConfirm}
+              minimumDate={new Date()}
+            />
+          )}
+          {startDate && (
+            <Text className="py-1">Selected Start Time: {startDate.toLocaleString()}</Text>
+          )}
+        </View>
       )}
 
-      {/* Time Picker for End Time */}
       <Text className="my-2 text-sm font-semibold text-gray-700">Select End Time</Text>
       {Platform.OS === 'web' ? (
         <input
           type="datetime-local"
           className="p-2"
-          value={endDate.toISOString().slice(0, 16)} // Display in local time
+          value={endDate.toISOString().slice(0, 16)}
           onChange={handleEndTimeChangeWeb}
           min={new Date().toISOString().slice(0, 16)}
+          disabled={disabledDates.some(
+            (date) =>
+              new Date(endDate).toISOString().slice(0, 16) >= date.start &&
+              new Date(endDate).toISOString().slice(0, 16) <= date.end
+          )}
         />
       ) : (
-        <>
-          <Button title="Pick End Time" onPress={showEndTimePicker} />
-          <DatePicker
-            modal
-            open={openEndTime}
-            date={endDate}
-            mode="datetime" // Use datetime mode for mobile
-            onConfirm={handleEndTimeConfirm}
-            onCancel={hideEndTimePicker}
-            minimumDate={new Date()}
-          />
-        </>
+        <View>
+          <Button title="Pick End Time" onPress={showEndDatePicker} color="#6200ee" />
+          {showEndTimePicker && (
+            <DateTimePicker
+              value={endDate}
+              mode="datetime"
+              display="default"
+              onChange={handleEndTimeConfirm}
+              minimumDate={new Date()}
+            />
+          )}
+          {endDate && <Text className="py-1">Selected End Time: {endDate.toLocaleString()}</Text>}
+        </View>
       )}
 
       {/* Repeat Options */}

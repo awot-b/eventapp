@@ -1,13 +1,12 @@
-import { configureStore } from "@reduxjs/toolkit";
+import { configureStore } from '@reduxjs/toolkit';
 
-import eventReducer from "./eventSlice"; // Ensure correct path
+import eventReducer from './eventSlice';
 
 export const store = configureStore({
   reducer: {
-    events: eventReducer, // Ensure eventSlice has a valid default export
+    events: eventReducer,
   },
 });
 
-// Infer types for better TypeScript support
 export type RootState = ReturnType<typeof store.getState>;
 export type AppDispatch = typeof store.dispatch;

@@ -13,7 +13,6 @@ const CalendarView = () => {
   const [eventModalVisible, setEventModalVisible] = useState(false);
   const [currentEvents, setCurrentEvents] = useState<any[]>([]);
 
-  // Fetch events from storage
   useEffect(() => {
     const fetchEvents = async () => {
       try {
@@ -28,13 +27,11 @@ const CalendarView = () => {
         if (storedEventsString) {
           const storedEvents = JSON.parse(storedEventsString);
 
-          // Create a map of marked dates for the calendar
           const eventMap: any = {};
           storedEvents.forEach((event: any) => {
             const { startDate, endDate } = event;
             const currentDate = new Date(startDate);
 
-            // Mark each date in the range of the event
             while (currentDate <= new Date(endDate)) {
               const formattedDate = currentDate.toISOString().split('T')[0];
               eventMap[formattedDate] = { marked: true, dotColor: 'red' };
@@ -43,7 +40,7 @@ const CalendarView = () => {
           });
 
           setEvents(eventMap);
-          dispatch(loadEvents(storedEvents)); // Optionally load events into Redux
+          dispatch(loadEvents(storedEvents));
         }
       } catch (error) {
         console.error('Failed to load events:', error);
@@ -53,11 +50,9 @@ const CalendarView = () => {
     fetchEvents();
   }, [dispatch]);
 
-  // Handle date press to show events for the selected date
   const handleDatePress = (date: string) => {
     setSelectedDate(date);
 
-    // Fetch events for the selected date
     const fetchEventsForDate = async () => {
       try {
         let storedEventsString: string | null;
@@ -71,7 +66,6 @@ const CalendarView = () => {
         if (storedEventsString) {
           const storedEvents = JSON.parse(storedEventsString);
 
-          // Filter events that fall on the selected date
           const filteredEvents = storedEvents.filter((event: any) => {
             const eventStartDate = new Date(event.startDate).toISOString().split('T')[0];
             const eventEndDate = new Date(event.endDate).toISOString().split('T')[0];
@@ -89,7 +83,6 @@ const CalendarView = () => {
     setEventModalVisible(true);
   };
 
-  // Close the modal
   const closeModal = () => {
     setEventModalVisible(false);
     setSelectedDate(null);
@@ -98,10 +91,9 @@ const CalendarView = () => {
 
   return (
     <View className="flex-1 p-4">
-      {/* Calendar Component */}
       <Calendar
         markedDates={events}
-        onDayPress={(day: { dateString: string }) => handleDatePress(day.dateString)} // Handle date click
+        onDayPress={(day: { dateString: string }) => handleDatePress(day.dateString)}
         theme={{
           todayTextColor: '#ffffff',
           todayBackgroundColor: '#00307c',
@@ -109,7 +101,6 @@ const CalendarView = () => {
         }}
       />
 
-      {/* Event Modal */}
       <Modal
         visible={eventModalVisible}
         animationType="slide"

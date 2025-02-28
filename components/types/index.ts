@@ -8,8 +8,3 @@ export interface Event {
   repeat: 'None' | 'Weekly' | 'Bi-weekly' | 'Monthly';
 }
 
-export type RootStackParamList = {
-  Home: undefined; // No parameters for the Home screen
-  EditEvent: { event: Event }; // EditEvent screen expects an `event` parameter
-  CreateEvent: undefined;
-};

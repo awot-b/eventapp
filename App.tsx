@@ -1,15 +1,14 @@
 import './global.css';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import HomeScreen from 'components/HomeScreen';
+import HomeScreen from './components/HomeScreen';
 import { store } from 'components/redux/store';
 import CreateEventScreen from 'components/screens/CreateEventScreen';
 import EditEventScreen from 'components/screens/EditEventScreen';
-import { RootStackParamList } from 'components/types';
 import { StatusBar } from 'expo-status-bar';
 import { Provider } from 'react-redux';
 
-const Stack = createNativeStackNavigator<RootStackParamList>();
+const Stack = createNativeStackNavigator();
 
 export default function App() {
   return (
